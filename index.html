@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>The Forest - Mapa Original Interactivo</title>
+  <style>
+    :root {
+      --bg-dark: #0a0d12;
+      --bg-card: #161b22;
+      --bg-elevated: #21262d;
+      --border: #30363d;
+      --text-main: #f0f6fc;
+      --text-sub: #8b949e;
+      --accent-purple: #bc8cff;
+      --accent-gold: #d29922;
+      --accent-orange: #f0883e;
+      --accent-blue: #58a6ff;
+      --accent-red: #ff7b72;
+      --accent-green: #3fb950;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      position: fixed;
+    }
+
+    /* BARRA SUPERIOR */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 25;
+      padding: 12px 16px 8px 16px;
+      background: linear-gradient(180deg, rgba(10,13,18,0.95) 0%, rgba(10,13,18,0.8) 70%, rgba(10,13,18,0) 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .top-bar * { pointer-events: auto; }
+
+    .header-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* BOTÓN PARA CAMBIAR DE MAPA (SATELITAL / IN-GAME) */
+    .map-toggle-btn {
+      background: rgba(33, 38, 45, 0.9);
+      border: 1px solid var(--border);
+      color: var(--accent-gold);
+      padding: 5px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+
+    /* PILLS DE CATEGORÍAS CON DESPLAZAMIENTO HORIZONTAL */
+    .pills-scroll {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .pills-scroll::-webkit-scrollbar { display: none; }
+
+    .pill {
+      padding: 7px 13px;
+      border-radius: 18px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(22, 27, 34, 0.9);
+      border: 1px solid var(--border);
+      color: var(--text-sub);
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+    }
+
+    .pill.active {
+      background: var(--accent-green);
+      color: #fff;
+      border-color: var(--accent-green);
+      box-shadow: 0 2px 8px rgba(63, 185, 80, 0.4);
+    }
+
+    /* CONTENEDOR DEL MAPA */
+    .map-viewport {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      background: #090e14;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    .map-wrapper {
+      position: absolute;
+      width: 1000px;
+      height: 1000px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      transform-origin: center center;
+    }
+
+    /* IMAGEN DEL MAPA ORIGINAL */
+    .map-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      border-radius: 12px;
+      box-shadow: 0 0 40px rgba(0,0,0,0.8);
+      filter: contrast(1.05) brightness(0.95);
+    }
+
+    /* CAPA SVG PARA MARCADORES */
+    .svg-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .svg-layer * { pointer-events: auto; }
+
+    /* CONTROLES TÁCTILES DEL MAPA */
+    .map-controls {
+      position: absolute;
+      right: 16px;
+      top: 115px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 20;
+    }
+
+    .control-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(22, 27, 34, 0.9);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-size: 1.3rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      backdrop-filter: blur(8px);
+    }
+
+    /* BOTÓN BUSCAR FLOTANTE */
+    .fab-search {
+      position: absolute;
+      left: 16px;
+      top: 115px;
+      padding: 9px 15px;
+      border-radius: 22px;
+      background: rgba(22, 27, 34, 0.9);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 20;
+    }
+
+    /* PANEL INFERIOR SLIDING (BOTTOM SHEET) */
+    .bottom-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      border-radius: 20px 20px 0 0;
+      z-index: 30;
+      padding: 12px 18px 20px 18px;
+      box-shadow: 0 -8px 30px rgba(0,0,0,0.8);
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 10px auto;
+    }
+
+    .sheet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+
+    .sheet-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-cueva { background: rgba(188, 140, 255, 0.15); color: var(--accent-purple); border: 1px solid var(--accent-purple); }
+    .badge-clave { background: rgba(210, 153, 34, 0.15); color: var(--accent-gold); border: 1px solid var(--accent-gold); }
+    .badge-pistola { background: rgba(240, 136, 62, 0.15); color: var(--accent-orange); border: 1px solid var(--accent-orange); }
+    .badge-lago { background: rgba(88, 166, 255, 0.15); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+    .badge-campamento { background: rgba(255, 123, 114, 0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+
+    /* CAJA DE COMANDO GOTO */
+    .goto-box {
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+    }
+
+    .goto-text {
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: var(--accent-green);
+      font-weight: 600;
+    }
+
+    .copy-btn {
+      background: var(--accent-green);
+      color: #fff;
+      border: none;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
+    /* BUSCADOR Y LISTA COMPLETA */
+    .search-box {
+      width: 100%;
+      padding: 10px;
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+      outline: none;
+    }
+
+    .location-scroll {
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .list-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    /* NOTIFICACIÓN TOAST */
+    .toast {
+      position: absolute;
+      top: 65px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: var(--accent-green);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ANIMACIÓN PULSO DEL JUGADOR */
+    @keyframes pulse {
+      0% { r: 8px; opacity: 1; }
+      50% { r: 18px; opacity: 0.3; }
+      100% { r: 8px; opacity: 1; }
+    }
+    .player-pulse { animation: pulse 1.5s infinite; }
+  </style>
+</head>
+<body>
+
+  <!-- NOTIFICACIÓN DE COPIADO -->
+  <div class="toast" id="toast">¡Comando goto copiado!</div>
+
+  <!-- BARRA SUPERIOR -->
+  <div class="top-bar">
+    <div class="header-title">
+      <h1>🌲 The Forest Map</h1>
+      <button class="map-toggle-btn" id="mapToggleBtn" onclick="toggleMapType()">🗺️ Cambiar a Mapa In-Game</button>
+    </div>
+    
+    <div class="pills-scroll">
+      <div class="pill active" onclick="setCategory('all', this)">🌐 Todos</div>
+      <div class="pill" onclick="setCategory('cueva', this)">🦇 Cuevas</div>
+      <div class="pill" onclick="setCategory('clave', this)">⭐ Puntos Clave</div>
+      <div class="pill" onclick="setCategory('pistola', this)">🔫 Pistola Sílex</div>
+      <div class="pill" onclick="setCategory('lago', this)">💧 Lagos</div>
+      <div class="pill" onclick="setCategory('campamento', this)">🏕️ Campamentos</div>
+    </div>
+  </div>
+
+  <!-- BOTÓN FLOTANTE LISTA -->
+  <div class="fab-search" onclick="toggleFullList()">
+    🔍 Buscar u Objetos
+  </div>
+
+  <!-- CONTROLES TÁCTILES DEL MAPA -->
+  <div class="map-controls">
+    <div class="control-btn" onclick="zoom(1.25)">+</div>
+    <div class="control-btn" onclick="zoom(0.8)">−</div>
+    <div class="control-btn" onclick="resetZoom()" style="font-size: 0.85rem;">🎯</div>
+  </div>
+
+  <!-- VIEWPORT Y MAPA CON IMAGEN ORIGINAL -->
+  <div class="map-viewport" id="viewport">
+    <div class="map-wrapper" id="mapWrapper">
+      <!-- MAPA REAL DEL JUEGO -->
+      <img id="gameMapImg" class="map-img" src="https://theforestmap.com/images/map.jpg" alt="Mapa original de The Forest" onerror="handleImageError()">
+
+      <!-- CAPA SVG DE MARCADORES -->
+      <svg class="svg-layer" viewBox="0 0 1000 1000">
+        <!-- MARCADOR DEL JUGADOR -->
+        <g id="playerGroup" style="display:none;">
+          <circle id="playerPulse" cx="0" cy="0" r="12" fill="#ff7b72" opacity="0.4" class="player-pulse"/>
+          <circle id="playerDot" cx="0" cy="0" r="7" fill="#ff7b72" stroke="#ffffff" stroke-width="2"/>
+          <text id="playerText" x="0" y="-14" text-anchor="middle" fill="#ff7b72" font-size="14" font-weight="bold">TÚ</text>
+        </g>
+
+        <!-- MARCADORES DE LUGARES -->
+        <g id="markersGroup"></g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- PANEL DESLIZANTE INFERIOR -->
+  <div class="bottom-sheet" id="bottomSheet">
+    <div class="sheet-handle"></div>
+    
+    <!-- MODO 1: DETALLE DE LUGAR -->
+    <div id="detailView">
+      <div class="sheet-header">
+        <div>
+          <div class="sheet-title" id="sheetTitle">Toca cualquier punto</div>
+          <div style="font-size: 0.75rem; color: var(--text-sub);" id="sheetSub">Explora las ubicaciones clave del mapa</div>
+        </div>
+        <span class="badge badge-clave" id="sheetBadge">MAPA</span>
+      </div>
+
+      <div class="goto-box" id="gotoContainer" style="display:none;">
+        <span class="goto-text" id="sheetGoto">goto 0 0 0</span>
+        <button class="copy-btn" onclick="copyGotoCommand()">Copiar goto</button>
+      </div>
+
+      <p style="font-size: 0.82rem; color: var(--text-main); margin-bottom: 5px;" id="sheetDesc">Toca una cueva o punto para ver armas y copiar su comando.</p>
+      <div style="font-size: 0.78rem; color: var(--accent-gold); font-weight: 600;" id="sheetItems"></div>
+
+      <!-- LUGARES CERCANOS A TU MARCA -->
+      <div id="nearbySection" style="margin-top: 8px; display:none; border-top: 1px dashed var(--border); padding-top: 6px;">
+        <div style="font-size: 0.72rem; color: var(--text-sub); font-weight: bold; margin-bottom: 4px;">Ubicaciones más cercanas a ti:</div>
+        <div id="nearbyList" style="display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem;"></div>
+      </div>
+    </div>
+
+    <!-- MODO 2: LISTA Y BUSCADOR -->
+    <div id="listView" style="display:none; height: 100%;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div style="font-weight:bold; font-size:0.95rem;">Buscar por nombre u objeto</div>
+        <span style="font-size:0.78rem; color:var(--accent-blue);" onclick="toggleFullList()">Volver</span>
+      </div>
+      <input type="text" class="search-box" id="searchInput" placeholder="Ej: Katana, Motosierra, Arco, Keycard..." oninput="filterList()">
+      <div class="location-scroll" id="locationScroll"></div>
+    </div>
+  </div>
+
+  <script>
+    // DATOS DE UBICACIONES CON COORDENADAS OFICIALES DEL JUEGO
+    const locations = [
+      { id: 'c1a', name: 'Cueva 1 - Dead Cave (Katana)', cat: 'cueva', x: -479, y: 104, z: 601, desc: 'Entrada por cuerda a la cueva muerta.', items: '⚔️ Katana, Linterna, Dinamita' },
+      { id: 'c2', name: 'Cueva 2 - Hanging Cave (Mapa)', cat: 'cueva', x: -174, y: 54, z: 1022, desc: 'Cueva del colgado cerca del poblado.', items: '🗺️ Mapa de la península, Brújula, Hacha Moderna' },
+      { id: 'c3a', name: 'Cueva 3 - Damp Cave (Motosierra)', cat: 'cueva', x: -895, y: 60, z: -7, desc: 'Entrada cueva húmeda.', items: '🪚 Motosierra (Chainsaw)' },
+      { id: 'c4', name: 'Cueva 4 - Baby Cave', cat: 'cueva', x: -19, y: 61, z: 1224, desc: 'Cueva pequeña.', items: '📼 Casete 2, Dibujos de Timmy' },
+      { id: 'c5a', name: 'Cueva 5 - Submerged Cave', cat: 'cueva', x: 598, y: 69, z: 940, desc: 'Entrada sumergida.', items: '🥽 Respirador (Rebreather), Hacha Oxidada' },
+      { id: 'c6', name: 'Cueva 6 - Lawyer Cave (Keycard)', cat: 'cueva', x: 1094, y: 81, z: 255, desc: 'Cueva de los abogados.', items: '💳 Tarjeta de acceso (Keycard), Camcorder, Cintas' },
+      { id: 'c7', name: 'Cueva 7 - Chasm Cave (Arco)', cat: 'cueva', x: 487, y: 72, z: -635, desc: 'Cueva del abismo.', items: '🏹 Arco Moderno, Raqueta, Podómetro' },
+      { id: 'c8', name: 'Cueva 8 - Sinkhole Cave', cat: 'cueva', x: 67, y: -298, z: 32, desc: 'Fondo del crater gigante.', items: '🗡️ Machete, Traje formal' },
+      { id: 'c9', name: 'Cueva 9 - Ledge Cave (Escalada)', cat: 'cueva', x: 375, y: 67, z: -170, desc: 'Cueva de la cornisa.', items: '⛏️ Hacha de Escalada (Climbing Axe)' },
+      { id: 'cnau', name: 'Cueva Naufragio (Ballesta)', cat: 'cueva', x: -1020, y: 10, z: 1600, desc: 'Isla del suroeste.', items: '🎯 Ballesta (Crossbow), Esquema 1' },
+      { id: 'ckan', name: 'Cueva Kanji (Planeador)', cat: 'cueva', x: -1150, y: 10, z: -300, desc: 'Isla del oeste.', items: '🪁 Esquema 2 (Planeador) y Esquema 3' },
+
+      { id: 'k1', name: 'Cabina de la Avioneta', cat: 'clave', x: -383, y: 238, z: -1409, desc: 'Norte nevado.', items: '🔫 Pistola de bengalas (Flare Gun)' },
+      { id: 'k2', name: 'El Yate', cat: 'clave', x: 351, y: 44, z: 1384, desc: 'Barco en la costa sur.', items: '🛏️ Cama guardado, Casetes, Abrelatas' },
+      { id: 'k3', name: 'Fondo del Gran Pozo', cat: 'clave', x: 67, y: -298, z: 32, desc: 'Cráter principal.', items: '🚁 Helicóptero estrellado' },
+      { id: 'k4', name: 'Contenedores de Carga', cat: 'clave', x: -1080, y: 12, z: 360, desc: 'Playa oeste.', items: '🔌 Placas de circuito, Relojes' },
+
+      { id: 'p1', name: 'Pistola Sílex - Pieza 1', cat: 'pistola', x: -763, y: 127, z: 1465, desc: 'Acantilado suroeste.', items: '💣 Usar Dinamita' },
+      { id: 'p2', name: 'Pistola Sílex - Pieza 2', cat: 'pistola', x: 770, y: 99, z: 1530, desc: 'Playa sureste.', items: '💣 Usar Dinamita' },
+      { id: 'p3', name: 'Pistola Sílex - Pieza 3', cat: 'pistola', x: 125, y: 15, z: 1370, desc: 'Costa sur cerca del Yate.', items: '💣 Usar Dinamita' },
+      { id: 'p4', name: 'Pistola Sílex - Pieza 4', cat: 'pistola', x: 235, y: 50, z: 1100, desc: 'Cerca del campamento principal.', items: '💣 Usar Dinamita' },
+      { id: 'p5', name: 'Pistola Sílex - Pieza 5', cat: 'pistola', x: -1120, y: 15, z: 200, desc: 'Costa oeste.', items: '💣 Usar Dinamita' },
+
+      { id: 'l1', name: 'Lago de los Gansos', cat: 'lago', x: -650, y: 80, z: 300, desc: 'Geese Lake - Zona muy segura.', items: '🪿 Gansos, Agua potable' },
+      { id: 'l2', name: 'Lago de los Castores', cat: 'lago', x: 300, y: 80, z: -100, desc: 'Zona boscosa.', items: '🪵 Troncos' },
+
+      { id: 'm1', name: 'Campamento Principal Caníbal', cat: 'campamento', x: 200, y: 80, z: 900, desc: 'Poblado nativo más grande.', items: '🧶 Cuerdas, Dinamita, Suministros' },
+      { id: 'm2', name: 'Campamento de la Playa', cat: 'campamento', x: 350, y: 15, z: 1200, desc: 'Frente al Yate.', items: '🧳 Equipaje' }
+    ];
+
+    const categoryColors = {
+      cueva: '#bc8cff',
+      clave: '#d29922',
+      pistola: '#f0883e',
+      lago: '#58a6ff',
+      campamento: '#ff7b72'
+    };
+
+    // MAPA DE IMÁGENES
+    const mapSources = {
+      satellite: 'https://theforestmap.com/images/map.jpg',
+      ingame: 'https://static.wikia.nocookie.net/theforest_gamepedia/images/1/10/In-Game_Map.png'
+    };
+
+    let currentMapType = 'satellite';
+    let activeCategory = 'all';
+    let currentScale = 0.9;
+    let isDragging = false;
+    let startX, startY, translateX = 0, translateY = 0;
+
+    function gameToSvg(x, z) {
+      return {
+        x: ((x + 1500) / 3000) * 1000,
+        y: ((z + 1600) / 3200) * 1000
+      };
+    }
+
+    function svgToGame(svgX, svgY) {
+      return {
+        x: Math.round((svgX / 1000) * 3000 - 1500),
+        z: Math.round((svgY / 1000) * 3200 - 1600)
+      };
+    }
+
+    window.onload = () => {
+      renderMarkers();
+      setupTouchPanZoom();
+    };
+
+    // CAMBIAR ENTRE MAPA SATELITAL Y MAPA DIBUJADO A MANO IN-GAME
+    function toggleMapType() {
+      const img = document.getElementById('gameMapImg');
+      const btn = document.getElementById('mapToggleBtn');
+
+      if (currentMapType === 'satellite') {
+        currentMapType = 'ingame';
+        img.src = mapSources.ingame;
+        btn.innerText = '🗺️ Cambiar a Mapa Satelital';
+      } else {
+        currentMapType = 'satellite';
+        img.src = mapSources.satellite;
+        btn.innerText = '🗺️ Cambiar a Mapa In-Game';
+      }
+    }
+
+    function handleImageError() {
+      // Si falla la imagen remota, cae en la textura alternativa
+      document.getElementById('gameMapImg').src = 'https://theforestmap.com/images/map.jpg';
+    }
+
+    // DIBUJAR MARCADORES
+    function renderMarkers() {
+      const group = document.getElementById('markersGroup');
+      group.innerHTML = '';
+
+      locations.forEach(loc => {
+        if (activeCategory !== 'all' && loc.cat !== activeCategory) return;
+
+        const pos = gameToSvg(loc.x, loc.z);
+        const color = categoryColors[loc.cat] || '#ffffff';
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('onclick', `selectLocation('${loc.id}', event)`);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', pos.x);
+        circle.setAttribute('cy', pos.y);
+        circle.setAttribute('r', '11');
+        circle.setAttribute('fill', color);
+        circle.setAttribute('stroke', '#ffffff');
+        circle.setAttribute('stroke-width', '2.5');
+
+        g.appendChild(circle);
+        group.appendChild(g);
+      });
+    }
+
+    // SELECCIONAR UBICACIÓN
+    function selectLocation(id, event) {
+      if(event) event.stopPropagation();
+      const loc = locations.find(l => l.id === id);
+      if (!loc) return;
+
+      document.getElementById('sheetTitle').innerText = loc.name;
+      document.getElementById('sheetSub').innerText = `Coordenadas: ${loc.x}, ${loc.y}, ${loc.z}`;
+      document.getElementById('sheetBadge').className = `badge badge-${loc.cat}`;
+      document.getElementById('sheetBadge').innerText = loc.cat;
+      document.getElementById('sheetGoto').innerText = `goto ${loc.x} ${loc.y} ${loc.z}`;
+      document.getElementById('gotoContainer').style.display = 'flex';
+      document.getElementById('sheetDesc').innerText = loc.desc;
+      document.getElementById('sheetItems').innerText = loc.items;
+
+      document.getElementById('listView').style.display = 'none';
+      document.getElementById('detailView').style.display = 'block';
+    }
+
+    // COPIAR COMANDO GOTO
+    function copyGotoCommand() {
+      const text = document.getElementById('sheetGoto').innerText;
+      navigator.clipboard.writeText(text);
+
+      if (navigator.vibrate) navigator.vibrate(50);
+
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // ARRASTRE Y ZOOM TÁCTIL DEL MAPA
+    function setupTouchPanZoom() {
+      const viewport = document.getElementById('viewport');
+      const wrapper = document.getElementById('mapWrapper');
+
+      // Clic para poner la marca del jugador
+      viewport.addEventListener('click', (e) => {
+        if(isDragging) return;
+        const rect = wrapper.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        const svgX = (clickX / rect.width) * 1000;
+        const svgY = (clickY / rect.height) * 1000;
+
+        if (svgX >= 0 && svgX <= 1000 && svgY >= 0 && svgY <= 1000) {
+          const coords = svgToGame(svgX, svgY);
+          setPlayerPosition(coords.x, coords.z);
+        }
+      });
+
+      // Gestos de arrastre táctil / mouse
+      const startPan = (e) => {
+        isDragging = false;
+        const pageX = e.touches ? e.touches[0].pageX : e.pageX;
+        const pageY = e.touches ? e.touches[0].pageY : e.pageY;
+        startX = pageX - translateX;
+        startY = pageY - translateY;
+      };
+
+      const movePan = (e) => {
+        isDragging = true;
+        const pageX = e.touches ? e.touches[0].pageX : e.pageX;
+        const pageY = e.touches ? e.touches[0].pageY : e.pageY;
+        translateX = pageX - startX;
+        translateY = pageY - startY;
+        updateTransform();
+      };
+
+      viewport.addEventListener('touchstart', startPan);
+      viewport.addEventListener('touchmove', movePan);
+      viewport.addEventListener('mousedown', startPan);
+      window.addEventListener('mousemove', (e) => { if (e.buttons === 1) movePan(e); });
+    }
+
+    function updateTransform() {
+      const wrapper = document.getElementById('mapWrapper');
+      wrapper.style.transform = `translate(calc(-50% + ${translateX}px), calc(-50% + ${translateY}px)) scale(${currentScale})`;
+    }
+
+    function zoom(factor) {
+      currentScale *= factor;
+      if (currentScale < 0.5) currentScale = 0.5;
+      if (currentScale > 3.5) currentScale = 3.5;
+      updateTransform();
+    }
+
+    function resetZoom() {
+      currentScale = 0.9;
+      translateX = 0;
+      translateY = 0;
+      updateTransform();
+    }
+
+    // POSICIÓN DEL JUGADOR ("TÚ")
+    function setPlayerPosition(x, z) {
+      const pos = gameToSvg(x, z);
+
+      const pGroup = document.getElementById('playerGroup');
+      pGroup.style.display = 'block';
+      document.getElementById('playerPulse').setAttribute('cx', pos.x);
+      document.getElementById('playerPulse').setAttribute('cy', pos.y);
+      document.getElementById('playerDot').setAttribute('cx', pos.x);
+      document.getElementById('playerDot').setAttribute('cy', pos.y);
+      document.getElementById('playerText').setAttribute('x', pos.x);
+      document.getElementById('playerText').setAttribute('y', pos.y - 14);
+
+      // Calcular lugares más cercanos
+      const withDist = locations.map(l => ({
+        ...l,
+        dist: Math.round(Math.sqrt(Math.pow(l.x - x, 2) + Math.pow(l.z - z, 2)))
+      })).sort((a,b) => a.dist - b.dist).slice(0, 3);
+
+      const listEl = document.getElementById('nearbyList');
+      listEl.innerHTML = '';
+      withDist.forEach(item => {
+        listEl.innerHTML += `
+          <div style="display:flex; justify-content:space-between;" onclick="selectLocation('${item.id}')">
+            <span style="color:var(--text-main); font-weight:600;">${item.name}</span>
+            <span style="color:var(--accent-gold); font-weight:bold;">${item.dist}m</span>
+          </div>
+        `;
+      });
+      document.getElementById('nearbySection').style.display = 'block';
+    }
+
+    // FILTRO DE CATEGORÍAS
+    function setCategory(cat, el) {
+      activeCategory = cat;
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      renderMarkers();
+    }
+
+    // LISTA Y BUSCADOR
+    function toggleFullList() {
+      const listView = document.getElementById('listView');
+      const detailView = document.getElementById('detailView');
+
+      if (listView.style.display === 'none') {
+        listView.style.display = 'flex';
+        listView.style.flexDirection = 'column';
+        detailView.style.display = 'none';
+        renderFullList(locations);
+      } else {
+        listView.style.display = 'none';
+        detailView.style.display = 'block';
+      }
+    }
+
+    function renderFullList(items) {
+      const scroll = document.getElementById('locationScroll');
+      scroll.innerHTML = '';
+      items.forEach(loc => {
+        scroll.innerHTML += `
+          <div class="list-card" onclick="selectLocation('${loc.id}')">
+            <div style="display:flex; justify-content:space-between;">
+              <span style="font-weight:bold; font-size:0.88rem;">${loc.name}</span>
+              <span class="badge badge-${loc.cat}">${loc.cat}</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-sub);">goto ${loc.x} ${loc.y} ${loc.z}</div>
+            <div style="font-size:0.78rem; color:var(--accent-gold);">${loc.items}</div>
+          </div>
+        `;
+      });
+    }
+
+    function filterList() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const filtered = locations.filter(l => l.name.toLowerCase().includes(q) || l.items.toLowerCase().includes(q));
+      renderFullList(filtered);
+    }
+  </script>
+</body>
+</html>
